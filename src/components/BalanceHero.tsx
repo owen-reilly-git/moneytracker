@@ -1,0 +1,67 @@
+import type { Roommate, ExpenseWithParticipants, Payment } from "@/lib/database.types";
+import { calculateBalances, calculateSettlements } from "@/lib/balances";
+import SettleUpLine from "@/components/SettleUpLine";
+
+const currency = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
+const SETTLED_EPSILON = 0.005;
+
+export default function BalanceHero({
+  roommates,
+  expenses,
+  payments,
+  currentRoommateId,
+  householdId,
+}: {
+  roommates: Roommate[];
+  expenses: ExpenseWithParticipants[];
+  payments: Payment[];
+  currentRoommateId: string;
+  householdId: string;
+}) {
+  const balances = calculateBalances(roommates, expenses, payments);
+  const mine = balances.find((b) => b.roommateId === currentRoommateId);
+  const net = mine?.balance ?? 0;
+  const settled = Math.abs(net) < SETTLED_EPSILON;
+  const owedToMe = net > 0;
+
+  const myLines = calculateSettlements(balances).filter(
+    (s) => s.fromRoommateId === currentRoommateId || s.toRoommateId === currentRoommateId,
+  );
+
+  return (
+    <section className="rounded-lg border border-gray-200 p-6">
+      <p className="text-sm text-gray-500">Your balance</p>
+      <p
+        className={
+          settled
+            ? "text-4xl font-semibold text-gray-900"
+            : owedToMe
+              ? "text-4xl font-semibold text-green-700"
+              : "text-4xl font-semibold text-red-600"
+        }
+      >
+        {settled
+          ? "You're settled up"
+          : `${owedToMe ? "+" : "-"}${currency.format(Math.abs(net))}`}
+      </p>
+      {!settled && (
+        <p className="mt-1 text-sm text-gray-500">
+          {owedToMe ? "you are owed overall" : "you owe overall"}
+        </p>
+      )}
+
+      {myLines.length > 0 && (
+        <ul className="mt-4 flex flex-col gap-3 text-sm">
+          {myLines.map((s, i) => (
+            <SettleUpLine
+              key={i}
+              settlement={s}
+              currentRoommateId={currentRoommateId}
+              householdId={householdId}
+            />
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}

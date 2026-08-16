@@ -31,17 +31,21 @@ export default function ExpenseForm({
 
     setLoading(true);
     const supabase = createClient();
-    const { error: insertError } = await supabase.from("expenses").insert({
-      household_id: householdId,
-      paid_by: currentRoommateId,
-      label,
-      amount: parsedAmount,
-      frequency,
+    // Creates the expense and seeds one expense_participants row per
+    // currently-approved roommate in a single transaction (see
+    // create_expense_with_participants in supabase/schema.sql) — avoids
+    // ever having an expense with no participant rows.
+    const { error: rpcError } = await supabase.rpc("create_expense_with_participants", {
+      p_household_id: householdId,
+      p_paid_by: currentRoommateId,
+      p_label: label,
+      p_amount: parsedAmount,
+      p_frequency: frequency,
     });
     setLoading(false);
 
-    if (insertError) {
-      setError(insertError.message);
+    if (rpcError) {
+      setError(rpcError.message);
       return;
     }
 
@@ -52,12 +56,7 @@ export default function ExpenseForm({
   }
 
   return (
-    <form
-      onSubmit={handleSubmit}
-      className="flex flex-col gap-3 rounded-lg border border-gray-200 p-4"
-    >
-      <h2 className="font-medium">Add an expense</h2>
-
+    <form onSubmit={handleSubmit} className="flex flex-col gap-3">
       <label className="flex flex-col gap-1 text-sm">
         Label
         <input

@@ -1,15 +1,28 @@
-import type { Roommate, Expense } from "@/lib/database.types";
+import type { Roommate, ExpenseWithParticipants, Payment } from "@/lib/database.types";
 
 /**
- * The only place "who owes whom" is computed. A future payments
- * integration should read from this output rather than recomputing
- * balances elsewhere.
+ * The only place "who owes whom" is computed. Payments are recorded
+ * here directly (see the `payments` term below) — the deferred seam is
+ * real payment *execution* (Stripe, Venmo links, etc.), not recording
+ * that one already happened.
  *
  * v1 rule (confirmed): every expense ever logged, one-time or
- * recurring, is split equally across all currently-approved
- * roommates. This is a lifetime running total, not a monthly reset —
- * a recurring row counts once, regardless of how many months it's
- * been standing.
+ * recurring, is split equally across its own participant set — not
+ * the whole household — pulled from expense_participants (rows with
+ * opted_out=false). This is a lifetime running total, not a monthly
+ * reset. "Paid" is always the full amount regardless of whether the
+ * payer is themselves a participant; "fair share" only accrues for
+ * expenses a roommate is actually a participant in. A roommate absent
+ * from an expense's participant rows entirely (e.g. joined the
+ * household after it was posted) owes nothing on it, same as if they
+ * had opted out.
+ *
+ * Payments (confirmed): person-to-person, not tied to a specific
+ * expense, one-sided and immediate (no recipient confirmation step —
+ * same trust model expenses already use). A payment from A to B moves
+ * A's balance up and B's balance down by the amount, on top of
+ * whatever the expense math already produced — this is what lets a
+ * payment bring a balance back toward (or past) zero.
  */
 export interface RoommateBalance {
   roommateId: string;
@@ -22,24 +35,57 @@ export interface RoommateBalance {
 
 export function calculateBalances(
   roommates: Roommate[],
-  expenses: Expense[],
+  expenses: ExpenseWithParticipants[],
+  payments: Payment[],
 ): RoommateBalance[] {
   if (roommates.length === 0) return [];
 
-  const total = expenses.reduce((sum, e) => sum + e.amount, 0);
-  const fairShare = total / roommates.length;
+  const paidByRoommate = new Map<string, number>();
+  const fairShareByRoommate = new Map<string, number>();
+
+  for (const expense of expenses) {
+    paidByRoommate.set(
+      expense.paid_by,
+      (paidByRoommate.get(expense.paid_by) ?? 0) + expense.amount,
+    );
+
+    const participantIds = expense.expense_participants
+      .filter((p) => !p.opted_out)
+      .map((p) => p.roommate_id);
+
+    // Shouldn't happen — the payer is always seeded as a participant and
+    // can't opt out of their own expense — but guard divide-by-zero.
+    if (participantIds.length === 0) continue;
+
+    const share = expense.amount / participantIds.length;
+    for (const roommateId of participantIds) {
+      fairShareByRoommate.set(roommateId, (fairShareByRoommate.get(roommateId) ?? 0) + share);
+    }
+  }
+
+  const paymentAdjustment = new Map<string, number>();
+  for (const payment of payments) {
+    paymentAdjustment.set(
+      payment.from_roommate_id,
+      (paymentAdjustment.get(payment.from_roommate_id) ?? 0) + payment.amount,
+    );
+    paymentAdjustment.set(
+      payment.to_roommate_id,
+      (paymentAdjustment.get(payment.to_roommate_id) ?? 0) - payment.amount,
+    );
+  }
 
   return roommates.map((roommate) => {
-    const paid = expenses
-      .filter((e) => e.paid_by === roommate.id)
-      .reduce((sum, e) => sum + e.amount, 0);
+    const paid = paidByRoommate.get(roommate.id) ?? 0;
+    const fairShare = fairShareByRoommate.get(roommate.id) ?? 0;
+    const adjustment = paymentAdjustment.get(roommate.id) ?? 0;
 
     return {
       roommateId: roommate.id,
       name: roommate.name,
       paid,
       fairShare,
-      balance: paid - fairShare,
+      balance: paid - fairShare + adjustment,
     };
   });
 }

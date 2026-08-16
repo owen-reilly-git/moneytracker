@@ -17,8 +17,10 @@ export default function MonthlySubtotals({
   });
 
   return (
-    <section className="rounded-lg border border-gray-200 p-4">
-      <h2 className="mb-3 font-medium">Monthly recurring subtotal</h2>
+    <div>
+      <p className="mb-3 text-xs text-gray-500">
+        What each person personally pays toward standing monthly bills — not a balance.
+      </p>
       <ul className="flex flex-col gap-2 text-sm">
         {subtotals.map(({ roommate, total }) => (
           <li key={roommate.id} className="flex items-center justify-between">
@@ -27,6 +29,6 @@ export default function MonthlySubtotals({
           </li>
         ))}
       </ul>
-    </section>
+    </div>
   );
 }

@@ -1,24 +1,37 @@
 "use client";
 
-import type { Household, Roommate, Expense } from "@/lib/database.types";
+import type {
+  Household,
+  Roommate,
+  ExpenseWithParticipants,
+  Notification,
+  Payment,
+} from "@/lib/database.types";
 import SignOutButton from "@/components/SignOutButton";
+import NotificationBell from "@/components/NotificationBell";
+import HeaderPopover from "@/components/HeaderPopover";
+import BalanceHero from "@/components/BalanceHero";
 import ExpenseForm from "@/components/ExpenseForm";
-import ExpenseList from "@/components/ExpenseList";
+import ExpenseFeed from "@/components/ExpenseFeed";
 import MonthlySubtotals from "@/components/MonthlySubtotals";
-import BalancesSummary from "@/components/BalancesSummary";
 import SettlementList from "@/components/SettlementList";
+import PaymentHistory from "@/components/PaymentHistory";
 import PendingRequests from "@/components/PendingRequests";
 
 export default function DashboardClient({
   household,
   roommates,
   expenses,
+  notifications,
+  payments,
   currentRoommateId,
   isOwner,
 }: {
   household: Household;
   roommates: Roommate[];
-  expenses: Expense[];
+  expenses: ExpenseWithParticipants[];
+  notifications: Notification[];
+  payments: Payment[];
   currentRoommateId: string;
   isOwner: boolean;
 }) {
@@ -27,28 +40,52 @@ export default function DashboardClient({
 
   return (
     <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-8 p-6">
-      <header className="flex items-center justify-between">
+      <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold">{household.name}</h1>
           <p className="text-xs text-gray-500">Home code: {household.home_code}</p>
         </div>
-        <SignOutButton />
+        <div className="flex flex-wrap items-center gap-2">
+          <HeaderPopover label="Add an expense">
+            <ExpenseForm currentRoommateId={currentRoommateId} householdId={household.id} />
+          </HeaderPopover>
+          <HeaderPopover label="Your recurring bills">
+            <MonthlySubtotals roommates={approvedRoommates} expenses={expenses} />
+          </HeaderPopover>
+          <HeaderPopover label="Settle up">
+            <SettlementList roommates={approvedRoommates} expenses={expenses} payments={payments} />
+          </HeaderPopover>
+          <HeaderPopover label="Payment history">
+            <PaymentHistory roommates={approvedRoommates} payments={payments} />
+          </HeaderPopover>
+          {isOwner && (
+            <HeaderPopover label="Requests" badge={pendingRoommates.length}>
+              {pendingRoommates.length === 0 ? (
+                <p className="text-sm text-gray-500">No pending requests.</p>
+              ) : (
+                <PendingRequests pendingRoommates={pendingRoommates} />
+              )}
+            </HeaderPopover>
+          )}
+          <NotificationBell notifications={notifications} currentRoommateId={currentRoommateId} />
+          <SignOutButton />
+        </div>
       </header>
 
-      {isOwner && pendingRoommates.length > 0 && (
-        <PendingRequests pendingRoommates={pendingRoommates} />
-      )}
+      <BalanceHero
+        roommates={approvedRoommates}
+        expenses={expenses}
+        payments={payments}
+        currentRoommateId={currentRoommateId}
+        householdId={household.id}
+      />
 
-      <section className="grid gap-6 sm:grid-cols-2">
-        <ExpenseForm currentRoommateId={currentRoommateId} householdId={household.id} />
-        <div className="flex flex-col gap-6">
-          <MonthlySubtotals roommates={approvedRoommates} expenses={expenses} />
-          <BalancesSummary roommates={approvedRoommates} expenses={expenses} />
-          <SettlementList roommates={approvedRoommates} expenses={expenses} />
-        </div>
-      </section>
-
-      <ExpenseList roommates={approvedRoommates} expenses={expenses} />
+      <ExpenseFeed
+        householdId={household.id}
+        roommates={approvedRoommates}
+        expenses={expenses}
+        currentRoommateId={currentRoommateId}
+      />
     </main>
   );
 }

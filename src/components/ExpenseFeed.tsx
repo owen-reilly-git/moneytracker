@@ -1,24 +1,22 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import type { Roommate, Expense, ExpenseFrequency } from "@/lib/database.types";
+import { useState } from "react";
+import type { Roommate, ExpenseWithParticipants, ExpenseFrequency } from "@/lib/database.types";
+import ExpenseRow from "@/components/ExpenseRow";
 
-const currency = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
-
-export default function ExpenseList({
+export default function ExpenseFeed({
+  householdId,
   roommates,
   expenses,
+  currentRoommateId,
 }: {
+  householdId: string;
   roommates: Roommate[];
-  expenses: Expense[];
+  expenses: ExpenseWithParticipants[];
+  currentRoommateId: string;
 }) {
   const [roommateFilter, setRoommateFilter] = useState<string>("all");
   const [frequencyFilter, setFrequencyFilter] = useState<ExpenseFrequency | "all">("all");
-
-  const roommateNameById = useMemo(
-    () => new Map(roommates.map((r) => [r.id, r.name])),
-    [roommates],
-  );
 
   const filtered = expenses.filter((expense) => {
     if (roommateFilter !== "all" && expense.paid_by !== roommateFilter) return false;
@@ -28,7 +26,7 @@ export default function ExpenseList({
 
   return (
     <section className="rounded-lg border border-gray-200 p-4">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
         <h2 className="font-medium">Expenses</h2>
         <div className="flex gap-2">
           <select
@@ -60,28 +58,17 @@ export default function ExpenseList({
       {filtered.length === 0 ? (
         <p className="text-sm text-gray-500">No expenses match these filters.</p>
       ) : (
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-gray-200 text-left text-gray-500">
-              <th className="py-2 font-normal">Label</th>
-              <th className="py-2 font-normal">Paid by</th>
-              <th className="py-2 font-normal">Frequency</th>
-              <th className="py-2 text-right font-normal">Amount</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.map((expense) => (
-              <tr key={expense.id} className="border-b border-gray-100 last:border-0">
-                <td className="py-2">{expense.label}</td>
-                <td className="py-2">{roommateNameById.get(expense.paid_by) ?? "—"}</td>
-                <td className="py-2 capitalize">
-                  {expense.frequency === "one_time" ? "One-time" : "Recurring"}
-                </td>
-                <td className="py-2 text-right">{currency.format(expense.amount)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div className="flex max-h-[32rem] flex-col divide-y divide-gray-100 overflow-y-auto">
+          {filtered.map((expense) => (
+            <ExpenseRow
+              key={expense.id}
+              expense={expense}
+              roommates={roommates}
+              currentRoommateId={currentRoommateId}
+              householdId={householdId}
+            />
+          ))}
+        </div>
       )}
     </section>
   );

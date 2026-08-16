@@ -1,4 +1,4 @@
-import type { Roommate, Expense } from "@/lib/database.types";
+import type { Roommate, ExpenseWithParticipants, Payment } from "@/lib/database.types";
 import { calculateBalances, calculateSettlements } from "@/lib/balances";
 
 const currency = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
@@ -6,16 +6,17 @@ const currency = new Intl.NumberFormat("en-US", { style: "currency", currency: "
 export default function SettlementList({
   roommates,
   expenses,
+  payments,
 }: {
   roommates: Roommate[];
-  expenses: Expense[];
+  expenses: ExpenseWithParticipants[];
+  payments: Payment[];
 }) {
-  const balances = calculateBalances(roommates, expenses);
+  const balances = calculateBalances(roommates, expenses, payments);
   const settlements = calculateSettlements(balances);
 
   return (
-    <section className="rounded-lg border border-gray-200 p-4">
-      <h2 className="mb-1 font-medium">Settle up</h2>
+    <div>
       <p className="mb-3 text-xs text-gray-500">
         The smallest set of payments that would bring everyone to $0.
       </p>
@@ -33,6 +34,6 @@ export default function SettlementList({
           ))}
         </ul>
       )}
-    </section>
+    </div>
   );
 }
