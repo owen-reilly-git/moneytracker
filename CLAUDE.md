@@ -64,7 +64,16 @@ In-app only for v1 (`notifications` table + `NotificationBell` in the dashboard 
 
 ## Payments
 
-Person-to-person, not tied to any specific expense — "Carol paid Alice $20" reduces Carol's overall balance with the household pool, regardless of which expenses caused the debt. One-sided and immediate: recording a payment updates balances right away, no recipient-confirmation step (same trust model expenses already use — anyone can log one unchallenged). Either party can record it — `src/components/SettleUpLine.tsx` renders both "You owe X" and "X owes you" lines in `BalanceHero` with a record-payment action, and the RLS insert policy allows either `from_roommate_id` or `to_roommate_id` to match the caller. The amount field defaults to the suggested settlement amount but is editable, so partial payments are just a normal form submission, not a special case. No update policy on `payments` — a wrong entry gets deleted (allowed by either party) and re-recorded rather than edited, keeping history unambiguous. `PaymentHistory.tsx` (behind the "Payment history" header popover) shows the full household ledger.
+Person-to-person, not tied to any specific expense — "Carol paid Alice $20" reduces Carol's overall balance with the household pool, regardless of which expenses caused the debt. One-sided and immediate: recording a payment updates balances right away, no recipient-confirmation step (same trust model expenses already use — anyone can log one unchallenged). Either party can record it — `src/components/SettleUpLine.tsx` renders both "You owe X" and "X owes you" lines in `BalanceHero` with a record-payment action, and the RLS insert policy allows either `from_roommate_id` or `to_roommate_id` to match the caller. The amount field defaults to the suggested settlement amount but is editable, so partial payments are just a normal form submission, not a special case. No update policy on `payments` — a wrong entry gets deleted (allowed by either party) and re-recorded rather than edited, keeping history unambiguous. `PaymentHistory.tsx` shows the full household ledger — see "Dashboard entry points" below for where it's surfaced.
+
+## Dashboard entry points
+
+The header only holds the room name/password, `NotificationBell`, and sign out — everything else is triggered from two prominent elements rather than a row of buttons:
+
+- **`AddExpenseButton.tsx`** — the large circular "+" button sits in normal document flow between `BalanceHero` and `ExpenseFeed` (deliberately not `position: fixed`, so it can never overlap the scrollable feed beneath it). Tapping it opens `ExpenseForm` in `Modal.tsx`; `ExpenseForm` takes an optional `onSuccess` callback so the modal auto-closes after a successful add.
+- **`BalanceHero.tsx`** — the balance summary itself (label, big number, owe/owed line) is the tap target for a `Modal.tsx` containing `SettlementList`, `MonthlySubtotals`, and `PaymentHistory` stacked as one popup. Only that summary area is clickable, not the whole card — the per-person `SettleUpLine` rows below it (each with their own "Record payment" action) stay independently interactive.
+
+`Modal.tsx` (backdrop + centered panel, click-backdrop-or-✕ to close) is the one shared primitive both use. There is no more `HeaderPopover.tsx` — it was deleted once nothing referenced it.
 
 ## PWA (installable app, offline shell)
 

@@ -8,9 +8,11 @@ import type { ExpenseFrequency } from "@/lib/database.types";
 export default function ExpenseForm({
   householdId,
   currentRoommateId,
+  onSuccess,
 }: {
   householdId: string;
   currentRoommateId: string;
+  onSuccess?: () => void;
 }) {
   const router = useRouter();
   const [label, setLabel] = useState("");
@@ -53,6 +55,7 @@ export default function ExpenseForm({
     setAmount("");
     setFrequency("one_time");
     router.refresh();
+    onSuccess?.();
   }
 
   return (

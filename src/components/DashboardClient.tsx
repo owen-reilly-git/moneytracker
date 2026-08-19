@@ -9,13 +9,9 @@ import type {
 } from "@/lib/database.types";
 import SignOutButton from "@/components/SignOutButton";
 import NotificationBell from "@/components/NotificationBell";
-import HeaderPopover from "@/components/HeaderPopover";
 import BalanceHero from "@/components/BalanceHero";
-import ExpenseForm from "@/components/ExpenseForm";
+import AddExpenseButton from "@/components/AddExpenseButton";
 import ExpenseFeed from "@/components/ExpenseFeed";
-import MonthlySubtotals from "@/components/MonthlySubtotals";
-import SettlementList from "@/components/SettlementList";
-import PaymentHistory from "@/components/PaymentHistory";
 
 export default function DashboardClient({
   household,
@@ -40,18 +36,6 @@ export default function DashboardClient({
           <p className="text-xs text-gray-500">Room password: {household.password}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <HeaderPopover label="Add an expense" shortLabel="Add">
-            <ExpenseForm currentRoommateId={currentRoommateId} householdId={household.id} />
-          </HeaderPopover>
-          <HeaderPopover label="Your recurring bills" shortLabel="Bills">
-            <MonthlySubtotals roommates={roommates} expenses={expenses} />
-          </HeaderPopover>
-          <HeaderPopover label="Settle up" shortLabel="Settle">
-            <SettlementList roommates={roommates} expenses={expenses} payments={payments} />
-          </HeaderPopover>
-          <HeaderPopover label="Payment history" shortLabel="History">
-            <PaymentHistory roommates={roommates} payments={payments} />
-          </HeaderPopover>
           <NotificationBell notifications={notifications} currentRoommateId={currentRoommateId} />
           <SignOutButton />
         </div>
@@ -64,6 +48,8 @@ export default function DashboardClient({
         currentRoommateId={currentRoommateId}
         householdId={household.id}
       />
+
+      <AddExpenseButton currentRoommateId={currentRoommateId} householdId={household.id} />
 
       <ExpenseFeed
         householdId={household.id}
