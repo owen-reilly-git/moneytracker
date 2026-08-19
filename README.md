@@ -44,9 +44,8 @@ Open [http://localhost:3000](http://localhost:3000).
 ## 5. Try it out
 
 1. Sign up with an email/password (Supabase sends a confirmation email by default — either confirm it, or turn off "Confirm email" in **Authentication > Providers > Email** for local testing).
-2. On first login you'll land on **/join**: create a household and pick a home code, or enter someone else's code to request to join.
-3. The household owner sees incoming join requests on the dashboard and can admit or decline them.
-4. Once approved, add expenses (one-time or recurring) and see the shared dashboard, per-person monthly recurring subtotals, and the balance summary.
+2. On first login you'll land on **/join**: enter a room name and password. A new name creates that room; an existing name + matching password joins it instantly — no approval step.
+3. Add expenses (one-time or recurring) and see the shared dashboard, per-person monthly recurring subtotals, and the balance summary.
 
 ## Notes
 

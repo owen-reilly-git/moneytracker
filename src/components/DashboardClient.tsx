@@ -16,7 +16,6 @@ import ExpenseFeed from "@/components/ExpenseFeed";
 import MonthlySubtotals from "@/components/MonthlySubtotals";
 import SettlementList from "@/components/SettlementList";
 import PaymentHistory from "@/components/PaymentHistory";
-import PendingRequests from "@/components/PendingRequests";
 
 export default function DashboardClient({
   household,
@@ -25,7 +24,6 @@ export default function DashboardClient({
   notifications,
   payments,
   currentRoommateId,
-  isOwner,
 }: {
   household: Household;
   roommates: Roommate[];
@@ -33,47 +31,34 @@ export default function DashboardClient({
   notifications: Notification[];
   payments: Payment[];
   currentRoommateId: string;
-  isOwner: boolean;
 }) {
-  const approvedRoommates = roommates.filter((r) => r.status === "approved");
-  const pendingRoommates = roommates.filter((r) => r.status === "pending");
-
   return (
-    <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-8 p-6">
-      <header className="flex flex-wrap items-center justify-between gap-3">
+    <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-6 p-4 pb-32 sm:gap-8 sm:p-6 sm:pb-6">
+      <header className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold">{household.name}</h1>
-          <p className="text-xs text-gray-500">Home code: {household.home_code}</p>
+          <h1 className="text-xl font-semibold sm:text-2xl">{household.name}</h1>
+          <p className="text-xs text-gray-500">Room password: {household.password}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <HeaderPopover label="Add an expense">
+          <HeaderPopover label="Add an expense" shortLabel="Add">
             <ExpenseForm currentRoommateId={currentRoommateId} householdId={household.id} />
           </HeaderPopover>
-          <HeaderPopover label="Your recurring bills">
-            <MonthlySubtotals roommates={approvedRoommates} expenses={expenses} />
+          <HeaderPopover label="Your recurring bills" shortLabel="Bills">
+            <MonthlySubtotals roommates={roommates} expenses={expenses} />
           </HeaderPopover>
-          <HeaderPopover label="Settle up">
-            <SettlementList roommates={approvedRoommates} expenses={expenses} payments={payments} />
+          <HeaderPopover label="Settle up" shortLabel="Settle">
+            <SettlementList roommates={roommates} expenses={expenses} payments={payments} />
           </HeaderPopover>
-          <HeaderPopover label="Payment history">
-            <PaymentHistory roommates={approvedRoommates} payments={payments} />
+          <HeaderPopover label="Payment history" shortLabel="History">
+            <PaymentHistory roommates={roommates} payments={payments} />
           </HeaderPopover>
-          {isOwner && (
-            <HeaderPopover label="Requests" badge={pendingRoommates.length}>
-              {pendingRoommates.length === 0 ? (
-                <p className="text-sm text-gray-500">No pending requests.</p>
-              ) : (
-                <PendingRequests pendingRoommates={pendingRoommates} />
-              )}
-            </HeaderPopover>
-          )}
           <NotificationBell notifications={notifications} currentRoommateId={currentRoommateId} />
           <SignOutButton />
         </div>
       </header>
 
       <BalanceHero
-        roommates={approvedRoommates}
+        roommates={roommates}
         expenses={expenses}
         payments={payments}
         currentRoommateId={currentRoommateId}
@@ -82,7 +67,7 @@ export default function DashboardClient({
 
       <ExpenseFeed
         householdId={household.id}
-        roommates={approvedRoommates}
+        roommates={roommates}
         expenses={expenses}
         currentRoommateId={currentRoommateId}
       />

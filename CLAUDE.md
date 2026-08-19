@@ -14,8 +14,8 @@ Each roommate logs expenses they've paid for. Every roommate in the same househo
 
 ## Data model
 
-- `households` — id, name, `home_code` (unique, chosen by the creator), `owner_id` (references `auth.users`), created_at
-- `roommates` — id, household_id, `user_id` (references `auth.users`, nullable), name, email, `status` (`pending` | `approved` | `declined`), created_at. One row per (household, user).
+- `households` — id, `name` (unique — the room's lookup key), `password`, `owner_id` (references `auth.users`, informational only — who created the room), created_at
+- `roommates` — id, household_id, `user_id` (references `auth.users`, nullable), name, email, created_at. One row per (household, user); every row is a full member, there's no pending/approved/declined state.
 - `expenses` — id, household_id, `paid_by` (references roommates, restrict on delete), label, amount (numeric, > 0), `frequency` (`one_time` | `recurring`), created_at
 - `expense_participants` — id, expense_id, household_id, roommate_id, `opted_out` (boolean). One row per (expense, roommate) that was approved at the time the expense was created — see "Per-expense participants" below.
 - `notifications` — id, household_id, recipient_roommate_id, expense_id (nullable, `on delete set null`), `message` (precomputed, self-contained text), `read_at` (nullable). In-app only, see "Notifications" below.
@@ -23,29 +23,22 @@ Each roommate logs expenses they've paid for. Every roommate in the same househo
 
 Indexes on all foreign keys (`household_id`, `paid_by`, `user_id`, plus the new tables' FKs) and `expenses.frequency` for filtering, `notifications(recipient_roommate_id, read_at)` for the unread-count query.
 
-The canonical schema + RLS policies live in `supabase/schema.sql` — run it in the Supabase SQL editor for a fresh install. For an *existing* project, incremental changes ship as numbered files under `supabase/migrations/` (e.g. `002_participants_and_notifications.sql`, `003_payments.sql`) — additive-only, safe to run against live data. `schema.sql` gets the same additions folded in afterward so it stays the complete from-scratch reference; don't let it drift from the migrations.
+The canonical schema + RLS policies live in `supabase/schema.sql` — run it in the Supabase SQL editor for a fresh install. For an *existing* project, incremental changes ship as numbered files under `supabase/migrations/` (e.g. `002_participants_and_notifications.sql`, `003_payments.sql`, `004_room_password_join.sql`) — additive-only, safe to run against live data (`004` is the exception: it drops `home_code`/`status`, see that file's header comment for the required manual password backfill). `schema.sql` gets the same changes folded in afterward so it stays the complete from-scratch reference; don't let it drift from the migrations.
 
-## Household membership: the "Home Code" flow
+## Household membership: room name + password, instant join
 
-There is no email invite system in v1. Instead:
+There is no email invite system and no approval step in v1. Signing in the first time means entering a room name and password — that single action either creates the room (name doesn't exist yet) or joins it (name exists, password matches), atomically, via the `join_or_create_room(p_name, p_password, p_your_name)` Postgres function (`security definer`, since it needs to read `households.password` — a column never exposed via a broad `select` policy — and RLS has no insert policy on `households`/`roommates` at all, so this RPC is the *only* way either table gets a new row). `JoinOrCreateRoomForm` is the one form for both cases; there is no separate create-vs-join UI.
 
-1. **Create**: the first person ("owner") picks a household name and a home code they make up, which creates the `households` row and an auto-`approved` `roommates` row for themselves.
-2. **Join request**: anyone else enters that home code on the join screen, which looks up the household via the `find_household_by_code(code)` Postgres function (a `security definer` RPC — it does NOT expose a broad `SELECT` policy on `households`, since the code is the only thing gating access) and inserts a `pending` `roommates` row for themselves.
-3. **Approve/decline**: only the household owner (`households.owner_id = auth.uid()`) can update a `roommates` row's status. Pending/declined members cannot see any household data beyond their own membership row.
-4. Only `approved` roommates can see or add expenses in a household (`auth_household_ids()` helper filters on `status = 'approved'`).
+Membership is binary: a `roommates` row exists for a user in a household, or it doesn't. There's no pending/approved/declined state and no admit/decline UI — knowing the room name + password *is* the access control, and it's checked once, at join time, not on every subsequent access.
 
-Post-login routing depends on the current user's roommate row(s):
-- no row anywhere → `/join` (create or enter a home code)
-- row exists but `pending` → `/pending` (holding page)
-- row `approved` → `/dashboard`
+Post-login routing: no row anywhere → `/join`; row exists → `/dashboard`. That's the entire decision (see `src/app/page.tsx`, `src/app/dashboard/page.tsx`).
 
 ## RLS approach
 
-RLS policies avoid recursive self-joins by going through two `security definer` SQL functions instead of correlated subqueries on the same table:
-- `auth_household_ids()` — household ids where the current user is an `approved` roommate
-- `is_household_owner(household_id)` — whether the current user owns that household
+RLS policies avoid recursive self-joins by going through a `security definer` SQL function instead of a correlated subquery on the same table:
+- `auth_household_ids()` — household ids where the current user has a `roommates` row (i.e. is a member)
 
-When changing policies, keep using these helpers rather than inlining `roommates`-referencing subqueries directly into `roommates` policies (that pattern causes infinite recursion in Postgres RLS).
+When changing policies, keep using this helper rather than inlining `roommates`-referencing subqueries directly into `roommates` policies (that pattern causes infinite recursion in Postgres RLS). `households` and `roommates` intentionally have **no** insert/update/delete policies for regular clients — all writes to those two tables go through `join_or_create_room`, which bypasses RLS internally as `security definer` rather than needing policies that a plain client insert could also exploit.
 
 ## Balance / split logic
 
@@ -59,7 +52,7 @@ The dashboard's `BalanceHero` (top of page, current user's own net + personal br
 
 ## Per-expense participants (opt-out)
 
-By default every currently-`approved` roommate is seeded as a participant on a new expense (`expense_participants` row, `opted_out = false`), via the `create_expense_with_participants` Postgres function — this runs the expense insert and the participant-seeding insert in one transaction (plain function, not `security definer`, so both inserts still go through normal RLS as the calling user) so an expense can never end up with zero participant rows. `ExpenseForm` calls this RPC directly rather than a plain `insert`.
+By default every current household member is seeded as a participant on a new expense (`expense_participants` row, `opted_out = false`), via the `create_expense_with_participants` Postgres function — this runs the expense insert and the participant-seeding insert in one transaction (plain function, not `security definer`, so both inserts still go through normal RLS as the calling user) so an expense can never end up with zero participant rows. `ExpenseForm` calls this RPC directly rather than a plain `insert`.
 
 A roommate can opt out (or back in) of any expense they're a participant in **except their own** — RLS blocks the payer from toggling their own row (`roommate_id <> (select paid_by from expenses where id = ...)` in the `with check`). This is enforced at the database level, not just hidden in the UI. Opting out is a reversible toggle, no time limit. If every non-payer opts out, the expense's fair share becomes the full amount for the payer alone — this falls out of the general math with no special-casing needed.
 
@@ -91,8 +84,9 @@ Service worker via **Serwist's Turbopack integration** (`@serwist/turbopack`), n
 ## Explicitly out of scope (v1)
 
 - No Stripe / direct deposit / real payment execution — `payments` only records that a settlement happened, never moves money
-- No email-based invites (home code only)
-- No multi-household switching UI beyond what membership status requires
+- No email-based invites (room name + password only)
+- No multi-household switching UI — a user is assumed to belong to one room at a time
+- No password recovery/change flow for a room's password
 
 ## Env vars
 

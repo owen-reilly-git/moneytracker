@@ -8,12 +8,8 @@ export default async function Home() {
     redirect("/login");
   }
 
-  if (!membership || membership.status === "declined") {
+  if (!membership) {
     redirect("/join");
-  }
-
-  if (membership.status === "pending") {
-    redirect("/pending");
   }
 
   redirect("/dashboard");

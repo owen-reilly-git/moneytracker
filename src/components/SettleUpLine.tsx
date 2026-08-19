@@ -56,7 +56,7 @@ export default function SettleUpLine({
 
   return (
     <li>
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
         <span className={iOwe ? "text-red-600" : "text-green-700"}>
           {iOwe ? `You owe ${settlement.toName}` : `${settlement.fromName} owes you`}{" "}
           <span className="font-medium">{currency.format(settlement.amount)}</span>
@@ -64,7 +64,7 @@ export default function SettleUpLine({
         <button
           type="button"
           onClick={() => setRecording((v) => !v)}
-          className="text-xs underline"
+          className="py-1 text-xs underline"
         >
           {recording ? "Cancel" : "Record payment"}
         </button>
@@ -72,20 +72,20 @@ export default function SettleUpLine({
 
       {recording && (
         <form onSubmit={handleSubmit} className="mt-2 flex flex-col gap-2 rounded-md bg-gray-50 p-2">
-          <div className="flex gap-2">
+          <div className="flex flex-col gap-2 sm:flex-row">
             <input
               type="number"
               step="0.01"
               min="0.01"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
-              className="w-24 rounded-md border border-gray-300 px-2 py-1 text-sm"
+              className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm sm:w-24 sm:py-1"
             />
             <input
               placeholder="Note (optional)"
               value={note}
               onChange={(e) => setNote(e.target.value)}
-              className="flex-1 rounded-md border border-gray-300 px-2 py-1 text-sm"
+              className="flex-1 rounded-md border border-gray-300 px-2 py-1.5 text-sm sm:py-1"
             />
           </div>
           {error && <p className="text-xs text-red-600">{error}</p>}

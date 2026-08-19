@@ -114,11 +114,11 @@ export default function ExpenseRow({
   if (editing) {
     return (
       <form onSubmit={saveEdit} className="flex flex-col gap-2 py-3 text-sm">
-        <div className="flex gap-2">
+        <div className="flex flex-col gap-2 sm:flex-row">
           <input
             value={label}
             onChange={(e) => setLabel(e.target.value)}
-            className="flex-1 rounded-md border border-gray-300 px-2 py-1"
+            className="flex-1 rounded-md border border-gray-300 px-2 py-1.5 sm:py-1"
           />
           <input
             type="number"
@@ -126,7 +126,7 @@ export default function ExpenseRow({
             min="0.01"
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
-            className="w-28 rounded-md border border-gray-300 px-2 py-1"
+            className="w-full rounded-md border border-gray-300 px-2 py-1.5 sm:w-28 sm:py-1"
           />
         </div>
         <fieldset className="flex gap-4">
@@ -188,27 +188,27 @@ export default function ExpenseRow({
 
       {error && <p className="text-xs text-red-600">{error}</p>}
 
-      <div className="mt-1 flex gap-3">
+      <div className="mt-1 flex gap-4">
         {!isPayer && myParticipation && (
           <button
             type="button"
             disabled={busy}
             onClick={toggleOptOut}
-            className="text-xs underline disabled:opacity-50"
+            className="py-1 text-xs underline disabled:opacity-50"
           >
             {myParticipation.opted_out ? "Opt back in" : "Opt out"}
           </button>
         )}
         {isPayer && (
           <>
-            <button type="button" onClick={() => setEditing(true)} className="text-xs underline">
+            <button type="button" onClick={() => setEditing(true)} className="py-1 text-xs underline">
               Edit
             </button>
             <button
               type="button"
               disabled={busy}
               onClick={handleDelete}
-              className="text-xs text-red-600 underline disabled:opacity-50"
+              className="py-1 text-xs text-red-600 underline disabled:opacity-50"
             >
               Delete
             </button>

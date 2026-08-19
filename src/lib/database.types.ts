@@ -1,4 +1,3 @@
-export type RoommateStatus = "pending" | "approved" | "declined";
 export type ExpenseFrequency = "one_time" | "recurring";
 
 export interface Database {
@@ -8,20 +7,20 @@ export interface Database {
         Row: {
           id: string;
           name: string;
-          home_code: string;
+          password: string;
           owner_id: string;
           created_at: string;
         };
         Insert: {
           id?: string;
           name: string;
-          home_code: string;
+          password: string;
           owner_id: string;
           created_at?: string;
         };
         Update: Partial<{
           name: string;
-          home_code: string;
+          password: string;
           owner_id: string;
         }>;
         Relationships: [];
@@ -33,7 +32,6 @@ export interface Database {
           user_id: string | null;
           name: string;
           email: string;
-          status: RoommateStatus;
           created_at: string;
         };
         Insert: {
@@ -42,13 +40,11 @@ export interface Database {
           user_id: string;
           name: string;
           email: string;
-          status?: RoommateStatus;
           created_at?: string;
         };
         Update: Partial<{
           name: string;
           email: string;
-          status: RoommateStatus;
         }>;
         Relationships: [];
       };
@@ -164,17 +160,13 @@ export interface Database {
     };
     Views: Record<string, never>;
     Functions: {
-      find_household_by_code: {
-        Args: { code: string };
-        Returns: { id: string; name: string }[];
-      };
       auth_household_ids: {
         Args: Record<string, never>;
         Returns: string[];
       };
-      is_household_owner: {
-        Args: { hh_id: string };
-        Returns: boolean;
+      join_or_create_room: {
+        Args: { p_name: string; p_password: string; p_your_name: string };
+        Returns: string;
       };
       create_expense_with_participants: {
         Args: {

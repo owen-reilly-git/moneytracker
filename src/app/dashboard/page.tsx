@@ -12,9 +12,6 @@ export default async function DashboardPage() {
   if (!membership) {
     redirect("/join");
   }
-  if (membership.status === "pending" || membership.status === "declined") {
-    redirect("/pending");
-  }
 
   const supabase = await createClient();
 
@@ -65,7 +62,6 @@ export default async function DashboardPage() {
       notifications={notifications ?? []}
       payments={payments ?? []}
       currentRoommateId={membership.id}
-      isOwner={household.owner_id === user.id}
     />
   );
 }

@@ -1,7 +1,6 @@
 import { redirect } from "next/navigation";
 import { getCurrentUserAndMembership } from "@/lib/membership";
-import CreateHouseholdForm from "@/components/CreateHouseholdForm";
-import JoinHouseholdForm from "@/components/JoinHouseholdForm";
+import JoinOrCreateRoomForm from "@/components/JoinOrCreateRoomForm";
 
 export default async function JoinPage() {
   const { user, membership } = await getCurrentUserAndMembership();
@@ -9,27 +8,20 @@ export default async function JoinPage() {
   if (!user) {
     redirect("/login");
   }
-  if (membership?.status === "approved") {
+  if (membership) {
     redirect("/dashboard");
-  }
-  if (membership?.status === "pending") {
-    redirect("/pending");
   }
 
   return (
-    <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-8 p-6">
+    <main className="mx-auto flex w-full max-w-md flex-1 flex-col gap-8 p-6">
       <div>
-        <h1 className="text-2xl font-semibold">Join or create a household</h1>
+        <h1 className="text-2xl font-semibold">Join or create a room</h1>
         <p className="mt-1 text-sm text-gray-500">
-          Every household has a home code. Create one if you&apos;re the first
-          person moving in, or enter an existing code to request to join.
+          Every household is a room with a name and a password.
         </p>
       </div>
 
-      <div className="grid gap-6 sm:grid-cols-2">
-        <CreateHouseholdForm userEmail={user.email ?? ""} />
-        <JoinHouseholdForm userEmail={user.email ?? ""} />
-      </div>
+      <JoinOrCreateRoomForm />
     </main>
   );
 }

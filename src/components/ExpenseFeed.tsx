@@ -26,13 +26,13 @@ export default function ExpenseFeed({
 
   return (
     <section className="rounded-lg border border-gray-200 p-4">
-      <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
+      <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-3">
         <h2 className="font-medium">Expenses</h2>
         <div className="flex gap-2">
           <select
             value={roommateFilter}
             onChange={(e) => setRoommateFilter(e.target.value)}
-            className="rounded-md border border-gray-300 px-2 py-1 text-sm"
+            className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm sm:w-auto sm:py-1"
           >
             <option value="all">Everyone</option>
             {roommates.map((r) => (
@@ -46,7 +46,7 @@ export default function ExpenseFeed({
             onChange={(e) =>
               setFrequencyFilter(e.target.value as ExpenseFrequency | "all")
             }
-            className="rounded-md border border-gray-300 px-2 py-1 text-sm"
+            className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm sm:w-auto sm:py-1"
           >
             <option value="all">All frequencies</option>
             <option value="one_time">One-time</option>

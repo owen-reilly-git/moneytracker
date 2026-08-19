@@ -5,23 +5,29 @@
 create extension if not exists pgcrypto;
 
 create type expense_frequency as enum ('one_time', 'recurring');
-create type roommate_status as enum ('pending', 'approved', 'declined');
 
+-- `name` is the room's lookup key (paired with `password` — see
+-- join_or_create_room below), so it must be unique. `owner_id` is purely
+-- informational (who created the room) — no policy treats the owner
+-- specially, they're just the room's first member.
 create table households (
   id uuid primary key default gen_random_uuid(),
-  name text not null,
-  home_code text not null unique,
+  name text not null unique,
+  password text not null,
   owner_id uuid not null references auth.users(id),
   created_at timestamptz not null default now()
 );
 
+-- Every row here is a full member by definition — there's no pending or
+-- declined state. Joining a household happens atomically alongside
+-- verifying its password, via join_or_create_room below, never a plain
+-- client-side insert.
 create table roommates (
   id uuid primary key default gen_random_uuid(),
   household_id uuid not null references households(id) on delete cascade,
   user_id uuid references auth.users(id) on delete set null,
   name text not null,
   email text not null,
-  status roommate_status not null default 'pending',
   created_at timestamptz not null default now(),
   unique (household_id, user_id)
 );
@@ -48,22 +54,8 @@ create index expenses_frequency_idx on expenses(frequency);
 -- on behalf of the caller without re-triggering RLS recursively).
 -- ---------------------------------------------------------------------------
 
--- Household ids where the current user is an APPROVED member.
+-- Household ids where the current user is a member.
 create or replace function auth_household_ids()
-returns setof uuid
-language sql
-security definer
-stable
-set search_path = public
-as $$
-  select household_id from roommates
-  where user_id = auth.uid() and status = 'approved';
-$$;
-
--- Household ids where the current user has ANY membership row
--- (pending, approved, or declined) — used so a pending/declined
--- user can still see which household they applied to.
-create or replace function auth_member_household_ids()
 returns setof uuid
 language sql
 security definer
@@ -73,33 +65,60 @@ as $$
   select household_id from roommates where user_id = auth.uid();
 $$;
 
--- Whether the current user owns this household.
-create or replace function is_household_owner(hh_id uuid)
-returns boolean
-language sql
+-- Joins an existing room (verifying its password) or creates a new one
+-- (if no room has that name yet) and adds the caller as a member, all in
+-- one transaction. security definer because it needs to read
+-- households.password to verify it — that column is never exposed via a
+-- broad SELECT policy, so this is the only way to check it.
+create or replace function join_or_create_room(
+  p_name text,
+  p_password text,
+  p_your_name text
+) returns uuid
+language plpgsql
 security definer
-stable
 set search_path = public
 as $$
-  select exists(
-    select 1 from households where id = hh_id and owner_id = auth.uid()
-  );
+declare
+  v_user_id uuid := auth.uid();
+  v_user_email text;
+  v_household_id uuid;
+  v_existing_password text;
+begin
+  if v_user_id is null then
+    raise exception 'Not authenticated';
+  end if;
+
+  select email into v_user_email from auth.users where id = v_user_id;
+
+  select id, password into v_household_id, v_existing_password
+  from households where name = p_name;
+
+  if v_household_id is null then
+    insert into households (name, password, owner_id)
+    values (p_name, p_password, v_user_id)
+    returning id into v_household_id;
+  else
+    if v_existing_password is distinct from p_password then
+      raise exception 'Incorrect password';
+    end if;
+
+    if exists (
+      select 1 from roommates
+      where household_id = v_household_id and user_id = v_user_id
+    ) then
+      return v_household_id;
+    end if;
+  end if;
+
+  insert into roommates (household_id, user_id, name, email)
+  values (v_household_id, v_user_id, p_your_name, coalesce(v_user_email, ''));
+
+  return v_household_id;
+end;
 $$;
 
--- Look up a household by home code without exposing a broad SELECT policy
--- on households — the code itself is the access gate, so this only returns
--- the minimum needed to show a "join this household?" confirmation.
-create or replace function find_household_by_code(code text)
-returns table(id uuid, name text)
-language sql
-security definer
-stable
-set search_path = public
-as $$
-  select id, name from households where home_code = code;
-$$;
-
-grant execute on function find_household_by_code(text) to authenticated;
+grant execute on function join_or_create_room(text, text, text) to authenticated;
 
 -- ---------------------------------------------------------------------------
 -- Row Level Security
@@ -109,58 +128,36 @@ alter table households enable row level security;
 alter table roommates enable row level security;
 alter table expenses enable row level security;
 
--- households
-create policy "select own, owned, or applied-to household" on households
-  for select using (
-    owner_id = auth.uid()
-    or id in (select auth_member_household_ids())
-  );
+-- households — no insert policy: creation only happens through
+-- join_or_create_room, which bypasses RLS internally as security definer.
+create policy "select own household" on households
+  for select using (id in (select auth_household_ids()));
 
-create policy "authenticated users can create households" on households
-  for insert with check (owner_id = auth.uid());
-
--- roommates
-create policy "self, owner, or approved peers" on roommates
-  for select using (
-    user_id = auth.uid()
-    or is_household_owner(household_id)
-    or (status = 'approved' and household_id in (select auth_household_ids()))
-  );
-
-create policy "join as pending, or owner self-joins approved" on roommates
-  for insert with check (
-    user_id = auth.uid()
-    and (
-      status = 'pending'
-      or (status = 'approved' and is_household_owner(household_id))
-    )
-  );
-
-create policy "owner manages membership status" on roommates
-  for update using (is_household_owner(household_id))
-  with check (is_household_owner(household_id));
+-- roommates — no insert/update/delete policy: joining only happens
+-- through join_or_create_room, and there's no admit/decline action or
+-- status to change anymore.
+create policy "select roommates in own household" on roommates
+  for select using (household_id in (select auth_household_ids()));
 
 -- expenses
 create policy "select expenses in own household" on expenses
   for select using (household_id in (select auth_household_ids()));
 
-create policy "insert expenses as approved member" on expenses
+create policy "insert expenses as household member" on expenses
   for insert with check (
     household_id in (select auth_household_ids())
-    and paid_by in (
-      select id from roommates where user_id = auth.uid() and status = 'approved'
-    )
+    and paid_by in (select id from roommates where user_id = auth.uid())
   );
 
 create policy "update own expenses" on expenses
   for update using (
-    paid_by in (select id from roommates where user_id = auth.uid() and status = 'approved')
+    paid_by in (select id from roommates where user_id = auth.uid())
   )
   with check (household_id in (select auth_household_ids()));
 
 create policy "delete own expenses" on expenses
   for delete using (
-    paid_by in (select id from roommates where user_id = auth.uid() and status = 'approved')
+    paid_by in (select id from roommates where user_id = auth.uid())
   );
 
 -- ---------------------------------------------------------------------------
@@ -172,9 +169,9 @@ create policy "delete own expenses" on expenses
 
 -- expense_participants: who's actually splitting a given expense.
 -- One row per (expense, roommate) seeded at creation time from the
--- currently-approved household roster. Absence of a row means "wasn't
--- a household member when this was posted" (e.g. joined later) — not
--- the same as opted_out=true, and intentionally excluded either way.
+-- household roster at that moment. Absence of a row means "wasn't a
+-- household member when this was posted" (e.g. joined later) — not the
+-- same as opted_out=true, and intentionally excluded either way.
 create table expense_participants (
   id uuid primary key default gen_random_uuid(),
   expense_id uuid not null references expenses(id) on delete cascade,
@@ -195,7 +192,7 @@ create index expense_participants_household_id_idx on expense_participants(house
 insert into expense_participants (expense_id, household_id, roommate_id, opted_out)
 select e.id, e.household_id, r.id, false
 from expenses e
-join roommates r on r.household_id = e.household_id and r.status = 'approved'
+join roommates r on r.household_id = e.household_id
 where not exists (
   select 1 from expense_participants ep where ep.expense_id = e.id
 );
@@ -220,11 +217,11 @@ create index notifications_recipient_unread_idx on notifications(recipient_roomm
 create index notifications_household_id_idx on notifications(household_id);
 
 -- Atomically creates an expense and seeds one participant row per
--- currently-approved household roommate. Runs with the CALLER's own
--- privileges (default, not security definer) so both inserts still
--- go through normal RLS below — this is purely about atomicity
--- (avoids an expense with zero participant rows if the second insert
--- ever failed as two separate client calls).
+-- current household roommate. Runs with the CALLER's own privileges
+-- (default, not security definer) so both inserts still go through
+-- normal RLS below — this is purely about atomicity (avoids an expense
+-- with zero participant rows if the second insert ever failed as two
+-- separate client calls).
 create or replace function create_expense_with_participants(
   p_household_id uuid,
   p_paid_by uuid,
@@ -244,7 +241,7 @@ begin
   insert into expense_participants (expense_id, household_id, roommate_id, opted_out)
   select v_expense_id, p_household_id, id, false
   from roommates
-  where household_id = p_household_id and status = 'approved';
+  where household_id = p_household_id;
 
   return v_expense_id;
 end;
@@ -268,9 +265,7 @@ create policy "poster seeds participants for their own expense" on expense_parti
     and exists (
       select 1 from expenses e
       where e.id = expense_participants.expense_id
-        and e.paid_by in (
-          select id from roommates where user_id = auth.uid() and status = 'approved'
-        )
+        and e.paid_by in (select id from roommates where user_id = auth.uid())
     )
   );
 

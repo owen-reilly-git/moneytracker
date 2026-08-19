@@ -20,11 +20,5 @@ export async function getCurrentUserAndMembership(): Promise<{
     .select("*")
     .eq("user_id", user.id);
 
-  const membership =
-    rows?.find((r) => r.status === "approved") ??
-    rows?.find((r) => r.status === "pending") ??
-    rows?.[0] ??
-    null;
-
-  return { user, membership };
+  return { user, membership: rows?.[0] ?? null };
 }

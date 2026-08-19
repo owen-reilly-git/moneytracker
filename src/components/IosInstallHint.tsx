@@ -32,7 +32,7 @@ export default function IosInstallHint() {
   if (!eligible || dismissed) return null;
 
   return (
-    <div className="fixed inset-x-0 bottom-0 z-20 flex items-center justify-between gap-3 border-t border-gray-200 bg-white p-3 text-sm shadow-lg">
+    <div className="fixed inset-x-0 bottom-0 z-20 flex items-center justify-between gap-3 border-t border-gray-200 bg-white px-3 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] text-sm shadow-lg">
       <p>
         Install this app: tap <span className="font-medium">Share</span>, then{" "}
         <span className="font-medium">Add to Home Screen</span>.

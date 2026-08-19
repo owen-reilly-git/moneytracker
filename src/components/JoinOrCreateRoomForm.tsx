@@ -4,11 +4,11 @@ import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
-export default function CreateHouseholdForm({ userEmail }: { userEmail: string }) {
+export default function JoinOrCreateRoomForm() {
   const router = useRouter();
-  const [householdName, setHouseholdName] = useState("");
-  const [homeCode, setHomeCode] = useState("");
   const [yourName, setYourName] = useState("");
+  const [roomName, setRoomName] = useState("");
+  const [roomPassword, setRoomPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -18,44 +18,16 @@ export default function CreateHouseholdForm({ userEmail }: { userEmail: string }
     setLoading(true);
 
     const supabase = createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      setLoading(false);
-      setError("You must be signed in.");
-      return;
-    }
-
-    const { data: household, error: householdError } = await supabase
-      .from("households")
-      .insert({ name: householdName, home_code: homeCode, owner_id: user.id })
-      .select()
-      .single();
-
-    if (householdError || !household) {
-      setLoading(false);
-      setError(
-        householdError?.code === "23505"
-          ? "That home code is already taken. Pick another."
-          : householdError?.message ?? "Could not create household.",
-      );
-      return;
-    }
-
-    const { error: roommateError } = await supabase.from("roommates").insert({
-      household_id: household.id,
-      user_id: user.id,
-      name: yourName,
-      email: userEmail,
-      status: "approved",
+    const { error: rpcError } = await supabase.rpc("join_or_create_room", {
+      p_name: roomName,
+      p_password: roomPassword,
+      p_your_name: yourName,
     });
 
     setLoading(false);
 
-    if (roommateError) {
-      setError(roommateError.message);
+    if (rpcError) {
+      setError(rpcError.message);
       return;
     }
 
@@ -68,9 +40,9 @@ export default function CreateHouseholdForm({ userEmail }: { userEmail: string }
       onSubmit={handleSubmit}
       className="flex flex-col gap-3 rounded-lg border border-gray-200 p-4"
     >
-      <h2 className="font-medium">Create a household</h2>
       <p className="text-xs text-gray-500">
-        You&apos;ll be the owner and can approve or decline join requests.
+        Enter a room name and password. If it&apos;s a new room, this creates it. If it
+        already exists, entering the matching password joins it instantly.
       </p>
 
       <label className="flex flex-col gap-1 text-sm">
@@ -84,23 +56,24 @@ export default function CreateHouseholdForm({ userEmail }: { userEmail: string }
       </label>
 
       <label className="flex flex-col gap-1 text-sm">
-        Household name
+        Room name
         <input
           required
           placeholder="e.g. 42 Elm St"
-          value={householdName}
-          onChange={(e) => setHouseholdName(e.target.value)}
+          value={roomName}
+          onChange={(e) => setRoomName(e.target.value)}
           className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-gray-500 focus:outline-none"
         />
       </label>
 
       <label className="flex flex-col gap-1 text-sm">
-        Home code
+        Room password
         <input
           required
-          placeholder="Make one up, e.g. ELM42"
-          value={homeCode}
-          onChange={(e) => setHomeCode(e.target.value)}
+          type="password"
+          placeholder="Make one up if you're creating this room"
+          value={roomPassword}
+          onChange={(e) => setRoomPassword(e.target.value)}
           className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-gray-500 focus:outline-none"
         />
       </label>
@@ -112,7 +85,7 @@ export default function CreateHouseholdForm({ userEmail }: { userEmail: string }
         disabled={loading}
         className="mt-2 rounded-md bg-gray-900 px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
       >
-        {loading ? "Creating…" : "Create household"}
+        {loading ? "Continuing…" : "Continue"}
       </button>
     </form>
   );

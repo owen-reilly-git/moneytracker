@@ -29,15 +29,15 @@ export default function BalanceHero({
   );
 
   return (
-    <section className="rounded-lg border border-gray-200 p-6">
+    <section className="rounded-lg border border-gray-200 p-4 sm:p-6">
       <p className="text-sm text-gray-500">Your balance</p>
       <p
         className={
           settled
-            ? "text-4xl font-semibold text-gray-900"
+            ? "text-2xl font-semibold text-gray-900 sm:text-3xl"
             : owedToMe
-              ? "text-4xl font-semibold text-green-700"
-              : "text-4xl font-semibold text-red-600"
+              ? "text-3xl font-semibold text-green-700 sm:text-4xl"
+              : "text-3xl font-semibold text-red-600 sm:text-4xl"
         }
       >
         {settled
