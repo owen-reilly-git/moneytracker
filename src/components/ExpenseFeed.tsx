@@ -3,6 +3,8 @@
 import { useState } from "react";
 import type { Roommate, ExpenseWithParticipants, ExpenseFrequency } from "@/lib/database.types";
 import ExpenseRow from "@/components/ExpenseRow";
+import NewExpenseRow from "@/components/NewExpenseRow";
+import AddExpenseButton from "@/components/AddExpenseButton";
 
 export default function ExpenseFeed({
   householdId,
@@ -17,6 +19,7 @@ export default function ExpenseFeed({
 }) {
   const [roommateFilter, setRoommateFilter] = useState<string>("all");
   const [frequencyFilter, setFrequencyFilter] = useState<ExpenseFrequency | "all">("all");
+  const [isAdding, setIsAdding] = useState(false);
 
   const filtered = expenses.filter((expense) => {
     if (roommateFilter !== "all" && expense.paid_by !== roommateFilter) return false;
@@ -25,51 +28,65 @@ export default function ExpenseFeed({
   });
 
   return (
-    <section className="rounded-lg border border-gray-200 p-4">
-      <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-3">
-        <h2 className="font-medium">Expenses</h2>
-        <div className="flex gap-2">
-          <select
-            value={roommateFilter}
-            onChange={(e) => setRoommateFilter(e.target.value)}
-            className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm sm:w-auto sm:py-1"
-          >
-            <option value="all">Everyone</option>
-            {roommates.map((r) => (
-              <option key={r.id} value={r.id}>
-                {r.name}
-              </option>
-            ))}
-          </select>
-          <select
-            value={frequencyFilter}
-            onChange={(e) =>
-              setFrequencyFilter(e.target.value as ExpenseFrequency | "all")
-            }
-            className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm sm:w-auto sm:py-1"
-          >
-            <option value="all">All frequencies</option>
-            <option value="one_time">One-time</option>
-            <option value="recurring">Recurring</option>
-          </select>
+    <div className="relative mb-10 sm:mb-12">
+      <section className="rounded-lg border border-gray-200 p-4">
+        <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-3">
+          <h2 className="font-medium">Expenses</h2>
+          <div className="flex gap-2">
+            <select
+              value={roommateFilter}
+              onChange={(e) => setRoommateFilter(e.target.value)}
+              className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm sm:w-auto sm:py-1"
+            >
+              <option value="all">Everyone</option>
+              {roommates.map((r) => (
+                <option key={r.id} value={r.id}>
+                  {r.name}
+                </option>
+              ))}
+            </select>
+            <select
+              value={frequencyFilter}
+              onChange={(e) =>
+                setFrequencyFilter(e.target.value as ExpenseFrequency | "all")
+              }
+              className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm sm:w-auto sm:py-1"
+            >
+              <option value="all">All frequencies</option>
+              <option value="one_time">One-time</option>
+              <option value="recurring">Recurring</option>
+            </select>
+          </div>
         </div>
-      </div>
 
-      {filtered.length === 0 ? (
-        <p className="text-sm text-gray-500">No expenses match these filters.</p>
-      ) : (
-        <div className="flex max-h-[32rem] flex-col divide-y divide-gray-100 overflow-y-auto">
-          {filtered.map((expense) => (
-            <ExpenseRow
-              key={expense.id}
-              expense={expense}
-              roommates={roommates}
-              currentRoommateId={currentRoommateId}
-              householdId={householdId}
-            />
-          ))}
-        </div>
-      )}
-    </section>
+        {isAdding && (
+          <NewExpenseRow
+            householdId={householdId}
+            currentRoommateId={currentRoommateId}
+            onDone={() => setIsAdding(false)}
+          />
+        )}
+
+        {filtered.length === 0 ? (
+          <p className="text-sm text-gray-500">No expenses match these filters.</p>
+        ) : (
+          <div className="flex max-h-[32rem] flex-col divide-y divide-gray-100 overflow-y-auto">
+            {filtered.map((expense) => (
+              <ExpenseRow
+                key={expense.id}
+                expense={expense}
+                roommates={roommates}
+                currentRoommateId={currentRoommateId}
+                householdId={householdId}
+              />
+            ))}
+          </div>
+        )}
+      </section>
+
+      <div className="absolute inset-x-0 bottom-0 z-10 flex translate-y-1/2 justify-center">
+        <AddExpenseButton onClick={() => setIsAdding((v) => !v)} />
+      </div>
+    </div>
   );
 }

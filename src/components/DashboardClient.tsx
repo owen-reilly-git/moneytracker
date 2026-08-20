@@ -10,7 +10,6 @@ import type {
 import NotificationBell from "@/components/NotificationBell";
 import MenuButton from "@/components/MenuButton";
 import BalanceHero from "@/components/BalanceHero";
-import AddExpenseButton from "@/components/AddExpenseButton";
 import ExpenseFeed from "@/components/ExpenseFeed";
 
 export default function DashboardClient({
@@ -28,6 +27,9 @@ export default function DashboardClient({
   payments: Payment[];
   currentRoommateId: string;
 }) {
+  const myVenmoHandle =
+    roommates.find((r) => r.id === currentRoommateId)?.venmo_handle ?? null;
+
   return (
     <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-6 p-4 pb-32 sm:gap-8 sm:p-6 sm:pb-6">
       <header className="flex flex-row items-start justify-between gap-3">
@@ -37,7 +39,11 @@ export default function DashboardClient({
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <NotificationBell notifications={notifications} currentRoommateId={currentRoommateId} />
-          <MenuButton householdId={household.id} />
+          <MenuButton
+            householdId={household.id}
+            currentRoommateId={currentRoommateId}
+            venmoHandle={myVenmoHandle}
+          />
         </div>
       </header>
 
@@ -49,17 +55,12 @@ export default function DashboardClient({
         householdId={household.id}
       />
 
-      <div className="relative mb-10 sm:mb-12">
-        <ExpenseFeed
-          householdId={household.id}
-          roommates={roommates}
-          expenses={expenses}
-          currentRoommateId={currentRoommateId}
-        />
-        <div className="absolute inset-x-0 bottom-0 z-10 flex translate-y-1/2 justify-center">
-          <AddExpenseButton currentRoommateId={currentRoommateId} householdId={household.id} />
-        </div>
-      </div>
+      <ExpenseFeed
+        householdId={household.id}
+        roommates={roommates}
+        expenses={expenses}
+        currentRoommateId={currentRoommateId}
+      />
     </main>
   );
 }

@@ -28,6 +28,10 @@ create table roommates (
   user_id uuid references auth.users(id) on delete set null,
   name text not null,
   email text not null,
+  -- Public Venmo username only — never a password/token. Used to build a
+  -- venmo.com deep link; this app never authenticates with Venmo or
+  -- moves money. Nullable: a roommate may not have set one yet.
+  venmo_handle text,
   created_at timestamptz not null default now(),
   unique (household_id, user_id)
 );
@@ -81,7 +85,7 @@ alter table expenses enable row level security;
 create policy "select own household" on households
   for select using (id in (select auth_household_ids()));
 
--- roommates — no insert/update policy: joining only happens through
+-- roommates — no insert policy: joining only happens through
 -- join_or_create_room, and there's no admit/decline action or status
 -- to change anymore.
 create policy "select roommates in own household" on roommates
@@ -91,6 +95,13 @@ create policy "select roommates in own household" on roommates
 -- anyone else's), then the UI sends them to /join.
 create policy "roommate leaves own membership" on roommates
   for delete using (user_id = auth.uid());
+
+-- Lets you set/edit your own venmo_handle. RLS is row-level, not
+-- column-level, so this technically permits updating any column on your
+-- own row — the UI only ever exposes editing the handle.
+create policy "roommate edits own row" on roommates
+  for update using (user_id = auth.uid())
+  with check (user_id = auth.uid());
 
 -- expenses
 create policy "select expenses in own household" on expenses

@@ -3,6 +3,7 @@
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { buildVenmoUrl, openVenmoLink } from "@/lib/venmo";
 import type { Settlement } from "@/lib/balances";
 
 const currency = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
@@ -11,10 +12,13 @@ export default function SettleUpLine({
   settlement,
   currentRoommateId,
   householdId,
+  recipientVenmoHandle,
 }: {
   settlement: Settlement;
   currentRoommateId: string;
   householdId: string;
+  /** Only meaningful when `iOwe` — the Venmo handle of the person being paid. */
+  recipientVenmoHandle?: string | null;
 }) {
   const router = useRouter();
   const iOwe = settlement.fromRoommateId === currentRoommateId;
@@ -54,6 +58,22 @@ export default function SettleUpLine({
     router.refresh();
   }
 
+  // Opens the recipient's own already-logged-in Venmo app (or venmo.com
+  // on desktop) with the amount/note pre-filled — this app never talks
+  // to Venmo's API or moves money. Also expands the record-payment form
+  // below so the natural next step is right there when you get back —
+  // it does not auto-submit, that's still a deliberate second tap.
+  function handlePayWithVenmo() {
+    if (!recipientVenmoHandle) return;
+    const url = buildVenmoUrl({
+      handle: recipientVenmoHandle,
+      amount: settlement.amount,
+      note: "Settling up",
+    });
+    openVenmoLink(url);
+    setRecording(true);
+  }
+
   return (
     <li>
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
@@ -61,13 +81,27 @@ export default function SettleUpLine({
           {iOwe ? `You owe ${settlement.toName}` : `${settlement.fromName} owes you`}{" "}
           <span className="font-medium">{currency.format(settlement.amount)}</span>
         </span>
-        <button
-          type="button"
-          onClick={() => setRecording((v) => !v)}
-          className="py-1 text-xs underline"
-        >
-          {recording ? "Cancel" : "Record payment"}
-        </button>
+        <span className="flex items-center gap-3">
+          {iOwe &&
+            (recipientVenmoHandle ? (
+              <button
+                type="button"
+                onClick={handlePayWithVenmo}
+                className="py-1 text-xs font-medium text-blue-600 underline"
+              >
+                Pay {currency.format(settlement.amount)} with Venmo
+              </button>
+            ) : (
+              <span className="text-xs text-gray-400">{settlement.toName} hasn&apos;t set up Venmo</span>
+            ))}
+          <button
+            type="button"
+            onClick={() => setRecording((v) => !v)}
+            className="py-1 text-xs underline"
+          >
+            {recording ? "Cancel" : "Record payment"}
+          </button>
+        </span>
       </div>
 
       {recording && (

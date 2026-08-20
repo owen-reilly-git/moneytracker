@@ -4,10 +4,20 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useClickOutside } from "@/lib/useClickOutside";
+import VenmoHandleModal from "@/components/VenmoHandleModal";
 
-export default function MenuButton({ householdId }: { householdId: string }) {
+export default function MenuButton({
+  householdId,
+  currentRoommateId,
+  venmoHandle,
+}: {
+  householdId: string;
+  currentRoommateId: string;
+  venmoHandle: string | null;
+}) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const [venmoModalOpen, setVenmoModalOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   useClickOutside(containerRef, () => setOpen(false));
@@ -57,6 +67,16 @@ export default function MenuButton({ householdId }: { householdId: string }) {
         <div className="absolute right-0 top-full z-10 mt-2 w-48 rounded-lg border border-gray-200 bg-white p-2 text-gray-900 shadow-lg">
           <button
             type="button"
+            onClick={() => {
+              setVenmoModalOpen(true);
+              setOpen(false);
+            }}
+            className="block w-full rounded-md px-3 py-2 text-left text-sm hover:bg-gray-50"
+          >
+            Venmo handle
+          </button>
+          <button
+            type="button"
             disabled={busy}
             onClick={handleSwitchRooms}
             className="block w-full rounded-md px-3 py-2 text-left text-sm hover:bg-gray-50 disabled:opacity-50"
@@ -72,6 +92,13 @@ export default function MenuButton({ householdId }: { householdId: string }) {
           </button>
         </div>
       )}
+
+      <VenmoHandleModal
+        open={venmoModalOpen}
+        onClose={() => setVenmoModalOpen(false)}
+        currentRoommateId={currentRoommateId}
+        currentHandle={venmoHandle}
+      />
     </div>
   );
 }

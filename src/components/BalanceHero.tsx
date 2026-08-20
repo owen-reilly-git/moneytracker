@@ -6,6 +6,7 @@ import { calculateBalances, calculateSettlements } from "@/lib/balances";
 import SettleUpLine from "@/components/SettleUpLine";
 import Modal from "@/components/Modal";
 import SettlementList from "@/components/SettlementList";
+import VenmoHandleModal from "@/components/VenmoHandleModal";
 
 const currency = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
 const SETTLED_EPSILON = 0.005;
@@ -24,11 +25,15 @@ export default function BalanceHero({
   householdId: string;
 }) {
   const [open, setOpen] = useState(false);
+  const [venmoModalOpen, setVenmoModalOpen] = useState(false);
   const balances = calculateBalances(roommates, expenses, payments);
   const mine = balances.find((b) => b.roommateId === currentRoommateId);
   const net = mine?.balance ?? 0;
   const settled = Math.abs(net) < SETTLED_EPSILON;
   const owedToMe = net > 0;
+
+  const roommateById = new Map(roommates.map((r) => [r.id, r]));
+  const myVenmoHandle = roommateById.get(currentRoommateId)?.venmo_handle ?? null;
 
   const myLines = calculateSettlements(balances).filter(
     (s) => s.fromRoommateId === currentRoommateId || s.toRoommateId === currentRoommateId,
@@ -72,14 +77,31 @@ export default function BalanceHero({
               settlement={s}
               currentRoommateId={currentRoommateId}
               householdId={householdId}
+              recipientVenmoHandle={roommateById.get(s.toRoommateId)?.venmo_handle ?? null}
             />
           ))}
         </ul>
       )}
 
+      {!myVenmoHandle && (
+        <p className="mt-4 text-xs text-gray-400">
+          <button type="button" onClick={() => setVenmoModalOpen(true)} className="underline">
+            Add your Venmo handle
+          </button>{" "}
+          so roommates can pay you back.
+        </p>
+      )}
+
       <Modal open={open} onClose={() => setOpen(false)} title="Settle up">
         <SettlementList roommates={roommates} expenses={expenses} payments={payments} />
       </Modal>
+
+      <VenmoHandleModal
+        open={venmoModalOpen}
+        onClose={() => setVenmoModalOpen(false)}
+        currentRoommateId={currentRoommateId}
+        currentHandle={myVenmoHandle}
+      />
     </section>
   );
 }

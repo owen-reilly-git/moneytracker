@@ -32,6 +32,7 @@ export interface Database {
           user_id: string | null;
           name: string;
           email: string;
+          venmo_handle: string | null;
           created_at: string;
         };
         Insert: {
@@ -40,11 +41,13 @@ export interface Database {
           user_id: string;
           name: string;
           email: string;
+          venmo_handle?: string | null;
           created_at?: string;
         };
         Update: Partial<{
           name: string;
           email: string;
+          venmo_handle: string | null;
         }>;
         Relationships: [];
       };
