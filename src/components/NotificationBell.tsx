@@ -46,7 +46,7 @@ export default function NotificationBell({
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="relative rounded-md border border-gray-300 px-2.5 py-2 text-sm sm:px-3 sm:py-1.5"
+        className="relative flex h-9 w-9 items-center justify-center rounded-md bg-gray-200 text-xs"
       >
         🔔
         {unreadCount > 0 && (
@@ -57,7 +57,7 @@ export default function NotificationBell({
       </button>
 
       {open && (
-        <div className="fixed inset-x-4 bottom-4 z-10 rounded-lg border border-gray-200 bg-white p-3 text-gray-900 shadow-lg sm:absolute sm:inset-x-auto sm:bottom-auto sm:right-0 sm:top-full sm:mt-2 sm:w-80">
+        <div className="absolute right-0 top-full z-10 mt-2 w-[min(20rem,calc(100vw-2rem))] rounded-lg border border-gray-200 bg-white p-3 text-gray-900 shadow-lg">
           <div className="mb-2 flex items-center justify-between">
             <h3 className="text-sm font-medium">Notifications</h3>
             {unreadCount > 0 && (

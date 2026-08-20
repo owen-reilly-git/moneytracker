@@ -65,60 +65,8 @@ as $$
   select household_id from roommates where user_id = auth.uid();
 $$;
 
--- Joins an existing room (verifying its password) or creates a new one
--- (if no room has that name yet) and adds the caller as a member, all in
--- one transaction. security definer because it needs to read
--- households.password to verify it — that column is never exposed via a
--- broad SELECT policy, so this is the only way to check it.
-create or replace function join_or_create_room(
-  p_name text,
-  p_password text,
-  p_your_name text
-) returns uuid
-language plpgsql
-security definer
-set search_path = public
-as $$
-declare
-  v_user_id uuid := auth.uid();
-  v_user_email text;
-  v_household_id uuid;
-  v_existing_password text;
-begin
-  if v_user_id is null then
-    raise exception 'Not authenticated';
-  end if;
-
-  select email into v_user_email from auth.users where id = v_user_id;
-
-  select id, password into v_household_id, v_existing_password
-  from households where name = p_name;
-
-  if v_household_id is null then
-    insert into households (name, password, owner_id)
-    values (p_name, p_password, v_user_id)
-    returning id into v_household_id;
-  else
-    if v_existing_password is distinct from p_password then
-      raise exception 'Incorrect password';
-    end if;
-
-    if exists (
-      select 1 from roommates
-      where household_id = v_household_id and user_id = v_user_id
-    ) then
-      return v_household_id;
-    end if;
-  end if;
-
-  insert into roommates (household_id, user_id, name, email)
-  values (v_household_id, v_user_id, p_your_name, coalesce(v_user_email, ''));
-
-  return v_household_id;
-end;
-$$;
-
-grant execute on function join_or_create_room(text, text, text) to authenticated;
+-- join_or_create_room is defined further down, after expense_participants
+-- exists — it seeds participant rows on join, so it needs that table.
 
 -- ---------------------------------------------------------------------------
 -- Row Level Security
@@ -133,11 +81,16 @@ alter table expenses enable row level security;
 create policy "select own household" on households
   for select using (id in (select auth_household_ids()));
 
--- roommates — no insert/update/delete policy: joining only happens
--- through join_or_create_room, and there's no admit/decline action or
--- status to change anymore.
+-- roommates — no insert/update policy: joining only happens through
+-- join_or_create_room, and there's no admit/decline action or status
+-- to change anymore.
 create policy "select roommates in own household" on roommates
   for select using (household_id in (select auth_household_ids()));
+
+-- "Switch rooms": deletes the caller's own membership row (never
+-- anyone else's), then the UI sends them to /join.
+create policy "roommate leaves own membership" on roommates
+  for delete using (user_id = auth.uid());
 
 -- expenses
 create policy "select expenses in own household" on expenses
@@ -195,6 +148,88 @@ from expenses e
 join roommates r on r.household_id = e.household_id
 where not exists (
   select 1 from expense_participants ep where ep.expense_id = e.id
+);
+
+-- Joins an existing room (verifying its password) or creates a new one
+-- (if no room has that name yet) and adds the caller as a member, all in
+-- one transaction. security definer because it needs to read
+-- households.password to verify it — that column is never exposed via a
+-- broad SELECT policy, so this is the only way to check it. Also backfills
+-- the new member as a participant (opted_out=false) on every expense that
+-- already exists in the room — joining includes you in existing bills by
+-- default, same as it already does for future ones; opt out per-expense
+-- afterward if needed.
+create or replace function join_or_create_room(
+  p_name text,
+  p_password text,
+  p_your_name text
+) returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_user_id uuid := auth.uid();
+  v_user_email text;
+  v_household_id uuid;
+  v_existing_password text;
+  v_roommate_id uuid;
+begin
+  if v_user_id is null then
+    raise exception 'Not authenticated';
+  end if;
+
+  select email into v_user_email from auth.users where id = v_user_id;
+
+  select id, password into v_household_id, v_existing_password
+  from households where name = p_name;
+
+  if v_household_id is null then
+    insert into households (name, password, owner_id)
+    values (p_name, p_password, v_user_id)
+    returning id into v_household_id;
+  else
+    if v_existing_password is distinct from p_password then
+      raise exception 'Incorrect password';
+    end if;
+
+    if exists (
+      select 1 from roommates
+      where household_id = v_household_id and user_id = v_user_id
+    ) then
+      return v_household_id;
+    end if;
+  end if;
+
+  insert into roommates (household_id, user_id, name, email)
+  values (v_household_id, v_user_id, p_your_name, coalesce(v_user_email, ''))
+  returning id into v_roommate_id;
+
+  insert into expense_participants (expense_id, household_id, roommate_id, opted_out)
+  select e.id, e.household_id, v_roommate_id, false
+  from expenses e
+  where e.household_id = v_household_id
+  on conflict (expense_id, roommate_id) do nothing;
+
+  return v_household_id;
+end;
+$$;
+
+grant execute on function join_or_create_room(text, text, text) to authenticated;
+
+-- Backfill: no-op on a fresh install, kept so this file matches
+-- supabase/migrations/006_backfill_new_members.sql exactly. On an
+-- existing project with data predating the join-time backfill above,
+-- this brings it in line: every current member becomes a participant on
+-- every existing expense in their household, wherever missing. Existing
+-- rows (including prior opt-outs) are left untouched.
+insert into expense_participants (expense_id, household_id, roommate_id, opted_out)
+select e.id, e.household_id, r.id, false
+from expenses e
+join roommates r on r.household_id = e.household_id
+where not exists (
+  select 1 from expense_participants ep
+  where ep.expense_id = e.id and ep.roommate_id = r.id
 );
 
 -- notifications: in-app only for v1. `message` is a precomputed,

@@ -17,7 +17,7 @@ Each roommate logs expenses they've paid for. Every roommate in the same househo
 - `households` — id, `name` (unique — the room's lookup key), `password`, `owner_id` (references `auth.users`, informational only — who created the room), created_at
 - `roommates` — id, household_id, `user_id` (references `auth.users`, nullable), name, email, created_at. One row per (household, user); every row is a full member, there's no pending/approved/declined state.
 - `expenses` — id, household_id, `paid_by` (references roommates, restrict on delete), label, amount (numeric, > 0), `frequency` (`one_time` | `recurring`), created_at
-- `expense_participants` — id, expense_id, household_id, roommate_id, `opted_out` (boolean). One row per (expense, roommate) that was approved at the time the expense was created — see "Per-expense participants" below.
+- `expense_participants` — id, expense_id, household_id, roommate_id, `opted_out` (boolean). One row per (expense, roommate) — seeded when the expense is created for then-current members, and backfilled for anyone who joins later — see "Per-expense participants" below.
 - `notifications` — id, household_id, recipient_roommate_id, expense_id (nullable, `on delete set null`), `message` (precomputed, self-contained text), `read_at` (nullable). In-app only, see "Notifications" below.
 - `payments` — id, household_id, `from_roommate_id`, `to_roommate_id` (both restrict on delete), amount (numeric, > 0), note (nullable), created_at. Person-to-person, not tied to a specific expense — see "Payments" below.
 
@@ -33,12 +33,14 @@ Membership is binary: a `roommates` row exists for a user in a household, or it 
 
 Post-login routing: no row anywhere → `/join`; row exists → `/dashboard`. That's the entire decision (see `src/app/page.tsx`, `src/app/dashboard/page.tsx`).
 
+Leaving is the mirror image: the "Switch rooms" action in `MenuButton.tsx` deletes the caller's own `roommates` row (confirmed via `window.confirm` first — it's the one non-payment destructive self-service action in the app) and sends them back to `/join`. There's no persisted "which room am I in" state beyond that row, so leaving one room and joining another is just delete-then-insert, not a stored preference to juggle.
+
 ## RLS approach
 
 RLS policies avoid recursive self-joins by going through a `security definer` SQL function instead of a correlated subquery on the same table:
 - `auth_household_ids()` — household ids where the current user has a `roommates` row (i.e. is a member)
 
-When changing policies, keep using this helper rather than inlining `roommates`-referencing subqueries directly into `roommates` policies (that pattern causes infinite recursion in Postgres RLS). `households` and `roommates` intentionally have **no** insert/update/delete policies for regular clients — all writes to those two tables go through `join_or_create_room`, which bypasses RLS internally as `security definer` rather than needing policies that a plain client insert could also exploit.
+When changing policies, keep using this helper rather than inlining `roommates`-referencing subqueries directly into `roommates` policies (that pattern causes infinite recursion in Postgres RLS). `households` and `roommates` intentionally have **no** insert/update policies for regular clients — all writes to those two tables go through `join_or_create_room`, which bypasses RLS internally as `security definer` rather than needing policies that a plain client insert could also exploit. The one exception is `roommates`' delete policy (`user_id = auth.uid()`, migration `005_leave_room.sql`) — a user can delete their own membership row and only their own, which is what "Switch rooms" uses.
 
 ## Balance / split logic
 
@@ -56,7 +58,7 @@ By default every current household member is seeded as a participant on a new ex
 
 A roommate can opt out (or back in) of any expense they're a participant in **except their own** — RLS blocks the payer from toggling their own row (`roommate_id <> (select paid_by from expenses where id = ...)` in the `with check`). This is enforced at the database level, not just hidden in the UI. Opting out is a reversible toggle, no time limit. If every non-payer opts out, the expense's fair share becomes the full amount for the payer alone — this falls out of the general math with no special-casing needed.
 
-A roommate who joins the household *after* an expense was posted has no participant row for it at all (not seeded retroactively) — same effect as having opted out, but distinguished conceptually: absence means "wasn't here," `opted_out = true` means "chose not to."
+A roommate who joins the household *after* an expense was posted is backfilled onto it — `join_or_create_room` (migration `006_backfill_new_members.sql`) seeds an `opted_out = false` row for every expense that already exists in that household at join time, the same as `create_expense_with_participants` does for new ones going forward. Joining includes you in existing bills by default; you opt out per-expense afterward if a given one doesn't apply to you. (Earlier versions of this app left old expenses alone when someone joined later — that was intentional at the time, but got reversed once it produced a confusing real case: a bill added moments before a roommate joined silently excluded them.)
 
 ## Notifications
 
@@ -68,12 +70,12 @@ Person-to-person, not tied to any specific expense — "Carol paid Alice $20" re
 
 ## Dashboard entry points
 
-The header only holds the room name/password, `NotificationBell`, and sign out — everything else is triggered from two prominent elements rather than a row of buttons:
+The header holds the room name/password on the left, and on the right just `NotificationBell` (shrunk to a small square, `h-9 w-9`, red unread-count badge) and `MenuButton` (grey square, "☰") — no standalone sign-out button anymore, it lives inside that menu alongside "Switch rooms" (see the membership section above). Both are `h-9 w-9` so they match visually. Everything else on the page is triggered from two prominent elements rather than a row of buttons:
 
-- **`AddExpenseButton.tsx`** — the large circular "+" button sits in normal document flow between `BalanceHero` and `ExpenseFeed` (deliberately not `position: fixed`, so it can never overlap the scrollable feed beneath it). Tapping it opens `ExpenseForm` in `Modal.tsx`; `ExpenseForm` takes an optional `onSuccess` callback so the modal auto-closes after a successful add.
-- **`BalanceHero.tsx`** — the balance summary itself (label, big number, owe/owed line) is the tap target for a `Modal.tsx` containing `SettlementList`, `MonthlySubtotals`, and `PaymentHistory` stacked as one popup. Only that summary area is clickable, not the whole card — the per-person `SettleUpLine` rows below it (each with their own "Record payment" action) stay independently interactive.
+- **`AddExpenseButton.tsx`** — the large circular "+" button (black border, green fill) is absolutely positioned to straddle the bottom border of the `ExpenseFeed` card, centered horizontally (`translate-y-1/2` on a wrapper anchored to that card's bottom edge — deliberately not `position: fixed` relative to the viewport, so it can never overlap scrolled content). Tapping it opens `ExpenseForm` in `Modal.tsx`; `ExpenseForm` takes an optional `onSuccess` callback so the modal auto-closes after a successful add.
+- **`BalanceHero.tsx`** — the balance summary itself (label, big number, owe/owed line) is the tap target for a `Modal.tsx` containing only `SettlementList`. Only that summary area is clickable, not the whole card — the per-person `SettleUpLine` rows below it (each with their own "Record payment" action) stay independently interactive.
 
-`Modal.tsx` (backdrop + centered panel, click-backdrop-or-✕ to close) is the one shared primitive both use. There is no more `HeaderPopover.tsx` — it was deleted once nothing referenced it.
+`Modal.tsx` (backdrop + centered panel, click-backdrop-or-✕ to close) is the one shared primitive both use. There is no more `HeaderPopover.tsx`, `MonthlySubtotals.tsx`, or `PaymentHistory.tsx` — all three were deleted once nothing referenced them. That means "your recurring bills" and "payment history" currently have **no UI anywhere** (confirmed intentional) — the underlying data (the `recurring` flag on expenses, the `payments` table) still exists and still feeds the balance math, it's just not surfaced as its own view. If that's revisited later, don't silently resurrect it — same "flag reachability before removing/not-adding" rule that governed removing it in the first place.
 
 ## PWA (installable app, offline shell)
 

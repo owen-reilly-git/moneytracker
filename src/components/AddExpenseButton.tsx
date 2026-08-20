@@ -14,12 +14,12 @@ export default function AddExpenseButton({
   const [open, setOpen] = useState(false);
 
   return (
-    <div className="flex justify-center py-2">
+    <>
       <button
         type="button"
         onClick={() => setOpen(true)}
         aria-label="Add an expense"
-        className="flex h-20 w-20 items-center justify-center rounded-full bg-green-600 text-4xl font-light leading-none text-white shadow-lg transition-transform active:scale-95 sm:h-24 sm:w-24"
+        className="flex h-20 w-20 items-center justify-center rounded-full border-2 border-black bg-green-600 text-4xl font-light leading-none text-white shadow-lg transition-transform active:scale-95 sm:h-24 sm:w-24"
       >
         +
       </button>
@@ -31,6 +31,6 @@ export default function AddExpenseButton({
           onSuccess={() => setOpen(false)}
         />
       </Modal>
-    </div>
+    </>
   );
 }

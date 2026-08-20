@@ -188,7 +188,7 @@ export default function ExpenseRow({
 
       {error && <p className="text-xs text-red-600">{error}</p>}
 
-      <div className="mt-1 flex gap-4">
+      <div className="mt-1 flex justify-end gap-2">
         {!isPayer && myParticipation && (
           <button
             type="button"
@@ -201,16 +201,49 @@ export default function ExpenseRow({
         )}
         {isPayer && (
           <>
-            <button type="button" onClick={() => setEditing(true)} className="py-1 text-xs underline">
-              Edit
+            <button
+              type="button"
+              onClick={() => setEditing(true)}
+              aria-label="Edit expense"
+              className="flex h-8 w-8 items-center justify-center rounded-md border border-gray-300 bg-white text-gray-700"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="h-4 w-4"
+              >
+                <path d="M12 20h9" />
+                <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z" />
+              </svg>
             </button>
             <button
               type="button"
               disabled={busy}
               onClick={handleDelete}
-              className="py-1 text-xs text-red-600 underline disabled:opacity-50"
+              aria-label="Delete expense"
+              className="flex h-8 w-8 items-center justify-center rounded-md bg-red-600 text-white disabled:opacity-50"
             >
-              Delete
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="h-4 w-4"
+              >
+                <path d="M3 6h18" />
+                <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                <path d="M10 11v6" />
+                <path d="M14 11v6" />
+              </svg>
             </button>
           </>
         )}

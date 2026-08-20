@@ -6,8 +6,6 @@ import { calculateBalances, calculateSettlements } from "@/lib/balances";
 import SettleUpLine from "@/components/SettleUpLine";
 import Modal from "@/components/Modal";
 import SettlementList from "@/components/SettlementList";
-import MonthlySubtotals from "@/components/MonthlySubtotals";
-import PaymentHistory from "@/components/PaymentHistory";
 
 const currency = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
 const SETTLED_EPSILON = 0.005;
@@ -63,7 +61,7 @@ export default function BalanceHero({
             {owedToMe ? "you are owed overall" : "you owe overall"}
           </p>
         )}
-        <p className="mt-1 text-xs text-gray-400 underline">Settle up, bills &amp; history</p>
+        <p className="mt-1 text-xs text-gray-400 underline">Settle up</p>
       </button>
 
       {myLines.length > 0 && (
@@ -80,19 +78,7 @@ export default function BalanceHero({
       )}
 
       <Modal open={open} onClose={() => setOpen(false)} title="Settle up">
-        <div className="flex flex-col gap-5">
-          <SettlementList roommates={roommates} expenses={expenses} payments={payments} />
-
-          <div>
-            <h3 className="mb-1 font-medium">Your recurring bills</h3>
-            <MonthlySubtotals roommates={roommates} expenses={expenses} />
-          </div>
-
-          <div>
-            <h3 className="mb-1 font-medium">Payment history</h3>
-            <PaymentHistory roommates={roommates} payments={payments} />
-          </div>
-        </div>
+        <SettlementList roommates={roommates} expenses={expenses} payments={payments} />
       </Modal>
     </section>
   );
